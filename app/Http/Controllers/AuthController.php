@@ -1,0 +1,179 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+use Exception;
+
+class AuthController extends Controller
+{
+    /**
+     * Handle user login
+     *
+     * Validates user credentials and creates authenticated session
+     * Requirements: 2.1, 2.2, 2.3
+     */
+    public function login(Request $request)
+    {
+        try {
+            // Validate input data
+            $request->validate([
+                'email' => 'required|email',
+                'password' => 'required|string',
+            ]);
+
+            // Attempt authentication
+            if (!Auth::attempt($request->only('email', 'password'))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The provided credentials are incorrect.',
+                    'errors' => [
+                        'email' => ['The provided credentials are incorrect.']
+                    ]
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // Regenerate session for security
+            $request->session()->regenerate();
+
+            return response()->json([
+                'success' => true,
+                'user' => $request->user(),
+                'message' => 'Login successful'
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during login.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Handle user registration
+     *
+     * Creates new user account and automatically logs them in
+     * Requirements: 1.1, 1.2, 1.3
+     */
+    public function register(Request $request)
+    {
+        try {
+            // Validate registration data
+            $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|string|email|max:255|unique:users',
+                'password' => 'required|string|min:8|confirmed',
+            ]);
+
+            // Create new user
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+            ]);
+
+            // Automatically log in the new user
+            Auth::login($user);
+            $request->session()->regenerate();
+
+            return response()->json([
+                'success' => true,
+                'user' => $user,
+                'message' => 'Registration successful'
+            ], Response::HTTP_CREATED);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $e->errors()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during registration.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Handle user logout
+     *
+     * Terminates user session and invalidates tokens
+     * Requirements: 3.1, 3.2, 3.3
+     */
+    public function logout(Request $request)
+    {
+        try {
+            // For Sanctum, use the web guard directly
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Logged out successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during logout.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Get authenticated user data
+     *
+     * Returns current authenticated user information
+     * Requirements: 2.1, 4.1, 4.2
+     */
+    public function user(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated.',
+                    'errors' => [
+                        'auth' => ['User not authenticated.']
+                    ]
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            return response()->json([
+                'success' => true,
+                'user' => $user
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while fetching user data.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+}
