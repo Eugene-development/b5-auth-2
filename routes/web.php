@@ -18,9 +18,14 @@ Route::get('/health', function () {
     return "Health check";
 });
 
-// Sanctum CSRF cookie route
+// Sanctum CSRF cookie route with CORS support
 Route::get('/sanctum/csrf-cookie', [CsrfCookieController::class, 'show'])
     ->middleware('web');
+
+// Explicit OPTIONS handler for CSRF cookie (for CORS preflight)
+Route::options('/sanctum/csrf-cookie', function () {
+    return response('', 204);
+})->middleware('web');
 
 Route::get('/test-db', function () {
     try {
