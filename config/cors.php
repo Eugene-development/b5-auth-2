@@ -23,8 +23,11 @@ return [
         env('FRONTEND_URL', 'http://localhost:5173'),
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'http://localhost:5020',
         'http://localhost:5040',
         'https://bonus5.ru',
+        'https://bonus.band',
+        'https://admin.bonus.band',
     ]),
 
     'allowed_origins_patterns' => [],
