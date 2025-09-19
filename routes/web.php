@@ -35,3 +35,8 @@ Route::get('/test-db', function () {
         return 'Unable to connect to the database: ' . $e->getMessage();
     }
 });
+
+// Email verification route (signed, no auth required)
+Route::get('/api/email/verify/{id}/{hash}', [App\Http\Controllers\AuthController::class, 'verifyEmail'])
+    ->middleware(['signed'])
+    ->name('verification.verify');

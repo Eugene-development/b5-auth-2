@@ -19,10 +19,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
 
-        // Enable sessions and CORS for API routes
+        // Enable CORS for API routes (sessions disabled temporarily)
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
-            \Illuminate\Session\Middleware\StartSession::class,
+            // \Illuminate\Session\Middleware\StartSession::class, // Temporarily disabled
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

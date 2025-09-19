@@ -76,6 +76,7 @@ class AuthController extends Controller
             $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|string|email|max:255|unique:users',
+                'phone' => 'nullable|string|max:20',
                 'password' => 'required|string|min:8|confirmed',
             ]);
 
@@ -83,6 +84,7 @@ class AuthController extends Controller
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
+                'phone' => $request->phone,
                 'password' => Hash::make($request->password),
             ]);
 
@@ -90,10 +92,21 @@ class AuthController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
 
+            // Send email verification notification after user is saved and logged in
+            try {
+                $user->sendEmailVerificationNotification();
+            } catch (\Exception $e) {
+                // Log error but don't break registration flow
+                \Log::error('Failed to send email verification', [
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'user' => $user,
-                'message' => 'Registration successful'
+                'message' => 'Регистрация прошла успешно. Проверьте вашу почту для подтверждения email.'
             ], Response::HTTP_CREATED);
         } catch (ValidationException $e) {
             return response()->json([
@@ -170,6 +183,85 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred while fetching user data.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Send email verification notification.
+     */
+    public function sendEmailVerification(Request $request)
+    {
+        try {
+            $user = $request->user();
+
+            if ($user->hasVerifiedEmail()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email уже подтвержден.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $user->sendEmailVerificationNotification();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Письмо с подтверждением отправлено.'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while sending verification email.',
+                'errors' => [
+                    'general' => ['An unexpected error occurred. Please try again.']
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Verify email address.
+     */
+    public function verifyEmail(Request $request, $id, $hash)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Недействительная ссылка для подтверждения.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            if ($user->hasVerifiedEmail()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Email уже был подтвержден ранее.',
+                    'data' => [
+                        'user' => $user
+                    ]
+                ]);
+            }
+
+            if ($user->markEmailAsVerified()) {
+                event(new \Illuminate\Auth\Events\Verified($user));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Email успешно подтвержден.',
+                'data' => [
+                    'user' => $user
+                ]
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred during email verification.',
                 'errors' => [
                     'general' => ['An unexpected error occurred. Please try again.']
                 ]
