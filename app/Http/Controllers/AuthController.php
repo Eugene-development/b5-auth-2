@@ -88,11 +88,7 @@ class AuthController extends Controller
                 'password' => Hash::make($request->password),
             ]);
 
-            // Automatically log in the new user
-            Auth::login($user);
-            $request->session()->regenerate();
-
-            // Send email verification notification after user is saved and logged in
+            // Send email verification notification after user is saved
             try {
                 $user->sendEmailVerificationNotification();
             } catch (\Exception $e) {
